@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Plan a Wardogs FOB on a grid and get the build supply bill before you spend a dollar.">
+<title>Wardogs FOB Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: engineer's field plan. Structure palette | gridded board | supply ledger. Stacks to one column on phones. */
+:root{
+  --bg:#e7ebe8; --panel:#f6f8f6; --board:#f2f5f2; --ink:#1c2420; --muted:#5a6862; --line:#c6cfca; --grid:#d6ddd9; --grid-strong:#bcc6c0;
+  --accent:#d9730d; --accent-ink:#ffffff; --warn:#c2331f; --on:#ffffff; --on-light:#1c2420;
+  --g-wall:#66766d; --g-entry:#c48511; --g-obst:#a3aba6; --g-point:#38698a; --g-wpn:#b03c2c; --g-log:#24806f; --g-rig:#86691a;
+  --display:"Saira Condensed","Arial Narrow",system-ui,sans-serif; --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121815; --panel:#19211e; --board:#161d1a; --ink:#e2e8e4; --muted:#93a199; --line:#2b3732; --grid:#222c28; --grid-strong:#33413b;
+  --accent:#f0922f; --accent-ink:#1a1206; --warn:#ff6a52; --on:#ffffff; --on-light:#101512;
+  --g-wall:#7a8b81; --g-entry:#d39a2c; --g-obst:#5c6661; --g-point:#4f88ae; --g-wpn:#c9513f; --g-log:#2f9b86; --g-rig:#a9892b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121815; --panel:#19211e; --board:#161d1a; --ink:#e2e8e4; --muted:#93a199; --line:#2b3732; --grid:#222c28; --grid-strong:#33413b;
+  --accent:#f0922f; --accent-ink:#1a1206; --warn:#ff6a52; --on:#ffffff; --on-light:#101512;
+  --g-wall:#7a8b81; --g-entry:#d39a2c; --g-obst:#5c6661; --g-point:#4f88ae; --g-wpn:#c9513f; --g-log:#2f9b86; --g-rig:#a9892b; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;margin:0}
+.wrap{max-width:1400px;margin:0 auto;padding-inline:16px;padding-block:20px 40px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 24px;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:16px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1;text-wrap:balance}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);font-size:14px;max-width:60ch;margin:0}
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr) 280px;gap:16px;align-items:start}
+@media (max-width:1100px){.layout{grid-template-columns:minmax(0,1fr) 280px}.palette{grid-column:1/-1;order:2}.boardcol{order:1}.ledger{order:3}}
+@media (max-width:760px){.layout{grid-template-columns:minmax(0,1fr)}.palette,.boardcol,.ledger{grid-column:1/-1}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;min-width:0}
+.eyebrow{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.palette .grp{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+@media (max-width:1100px){.palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 16px}.palette .grp{margin-bottom:6px}}
+.sbtn{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:4px;padding:5px 8px;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.sbtn:hover{border-color:var(--line);background:var(--board)}
+.sbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--board);box-shadow:inset 3px 0 0 var(--accent);border-radius:0}
+.sbtn .sw{width:14px;height:14px;border-radius:2px}
+.sbtn .c{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.btn{font:inherit;font-size:14px;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:6px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--grid-strong)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--muted)}
+.btn[aria-pressed="true"] kbd{color:inherit;border-color:currentColor}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.zone{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-left:auto}
+.zone input{width:110px}
+.status{font-family:var(--mono);font-size:12px;color:var(--muted);margin:0 0 8px;min-height:18px}
+.boardwrap{background:var(--board);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+#board{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair;user-select:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:18px;height:10px;border-radius:2px}
+.total{font-family:var(--display);font-weight:700;font-size:48px;line-height:1;font-variant-numeric:tabular-nums;margin:0}
+.total small{font-family:var(--body);font-weight:500;font-size:14px;color:var(--muted);margin-left:6px}
+.facts{display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin:12px 0;font-size:14px}
+.facts dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.facts dt{color:var(--muted)}
+.warnbox{border:1px solid var(--warn);color:var(--warn);border-radius:4px;padding:8px 10px;font-size:13px;margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--display);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12px;color:var(--muted);text-align:left;border-bottom:1px solid var(--line);padding:4px 0}
+td{padding:4px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;padding-left:8px}
+td .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.share{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+textarea{width:100%;min-height:64px;font-family:var(--mono);font-size:11px;background:var(--board);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:8px;resize:vertical}
+.msg{font-size:12px;color:var(--muted);min-height:16px;margin:0}
+.msg.err{color:var(--warn)}
+.notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;border:1px solid var(--accent);background:var(--panel);border-radius:4px;padding:8px 12px;font-size:13px;margin-bottom:10px}
+.notice p{margin:0;flex:1 1 260px}
+.share-row{display:flex;flex-wrap:wrap;gap:8px}
+.share-row .btn{flex:1 1 auto;justify-content:center}
+.note{font-size:12px;color:var(--muted);margin-top:14px;max-width:70ch}
+@media (prefers-reduced-motion:no-preference){.sbtn,.btn{transition:border-color .15s,background .15s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Wardogs <span>FOB</span> Planner</h1>
+    <p class="sub">Lay out a base on the grid and get the build supply bill before you spend a dollar. Pick a structure, then click or drag to place it.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="panel palette" id="palette" aria-label="Structures"></aside>
+
+    <section class="boardcol">
+      <div class="toolbar">
+        <button class="btn" id="rotBtn" type="button">Rotate <kbd>R</kbd></button>
+        <button class="btn" id="eraseBtn" type="button" aria-pressed="false">Erase <kbd>E</kbd></button>
+        <button class="btn" id="undoBtn" type="button">Undo <kbd>Ctrl Z</kbd></button>
+        <button class="btn" id="exampleBtn" type="button">Load example base</button>
+        <button class="btn danger" id="clearBtn" type="button">Clear</button>
+        <label class="zone" for="zoneIn">Build zone <input type="range" id="zoneIn" min="8" max="40" value="26"><span id="zoneLbl" style="font-family:var(--mono)">52</span></label>
+      </div>
+      <div class="notice" id="sharedNotice" hidden>
+        <p id="sharedText">You're looking at a shared layout. Editing it replaces the layout saved in this browser.</p>
+        <button class="btn primary" id="keepBtn" type="button">Keep this layout</button>
+        <button class="btn" id="mineBtn" type="button">Back to my layout</button>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+      <div class="boardwrap">
+        <svg id="board" viewBox="0 0 800 600" role="img" aria-label="Base layout grid, 40 by 30 cells">
+          <defs>
+            <pattern id="cell" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" style="stroke:var(--grid)" stroke-width="1"/></pattern>
+            <pattern id="major" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M100 0H0V100" fill="none" style="stroke:var(--grid-strong)" stroke-width="1"/></pattern>
+          </defs>
+          <rect width="800" height="600" fill="url(#cell)"/>
+          <rect width="800" height="600" fill="url(#major)"/>
+          <g id="zones"></g>
+          <g id="items"></g>
+          <rect id="ghost" x="0" y="0" width="0" height="0" rx="2" fill="none" stroke-width="2" pointer-events="none" visibility="hidden"/>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--g-wall)"></i>Walls</span>
+        <span><i style="background:var(--g-entry)"></i>Doors, gates, Bremers</span>
+        <span><i style="background:var(--g-obst)"></i>Obstacles (no FOB needed)</span>
+        <span><i style="background:var(--g-point)"></i>Strong points</span>
+        <span><i style="background:var(--g-wpn)"></i>Weapons</span>
+        <span><i style="background:var(--g-log)"></i>Logistics</span>
+        <span><i style="background:var(--g-rig)"></i>Drill Rig</span>
+        <span><i style="border:1.5px dashed var(--warn)"></i>Outside build zone</span>
+      </div>
+    </section>
+
+    <aside class="panel ledger" aria-label="Supply bill">
+      <p class="eyebrow">Build supplies</p>
+      <p class="total" id="total">0</p>
+      <dl class="facts" id="facts"></dl>
+      <div id="warns"></div>
+      <table>
+        <thead><tr><th>Structure</th><th style="text-align:right">Qty</th><th style="text-align:right">Supplies</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="share">
+        <p class="eyebrow" style="margin:0">Share a layout</p>
+        <div class="share-row">
+          <button class="btn primary" id="linkBtn" type="button">Copy share link</button>
+          <button class="btn" id="copyBtn" type="button">Copy code</button>
+        </div>
+        <textarea id="codeIn" aria-label="Layout link or code" placeholder="Paste a squadmate's link or layout code here"></textarea>
+        <button class="btn" id="importBtn" type="button">Load pasted layout</button>
+        <p class="msg" id="shareMsg" aria-live="polite"></p>
+      </div>
+    </aside>
+  </div>
+
+  <p class="note">Supply costs are from community build guides for the early access release and may change with patches. Footprints and the build zone are approximations on a one-cell-per-Hesco-block grid, so treat the plan as a budget and a layout guide, then check placement against the in-game preview. Your layout saves in this browser automatically.</p>
+</div>
+
+<script>
+const S={
+  fob:{n:'FOB crate',c:0,w:2,h:2,g:'log',f:false,k:'FOB'},
+  hwall:{n:'Hesco wall',c:46,w:4,h:1,g:'wall',f:true,k:'HESCO'},
+  hlg:{n:'Hesco block, large',c:14,w:1,h:1,g:'wall',f:true,k:'L'},
+  hsm:{n:'Hesco block, small',c:10,w:1,h:1,g:'wall',f:true,k:'S'},
+  door:{n:'Door',c:14,w:1,h:1,g:'entry',f:true,k:'D'},
+  gate:{n:'Gate',c:52,w:3,h:1,g:'entry',f:true,k:'GATE'},
+  bremer:{n:'Bremer wall',c:10,w:1,h:1,g:'entry',f:true,k:'B'},
+  sand:{n:'Sandbag wall',c:10,w:2,h:1,g:'obst',f:false,k:'SB'},
+  hog:{n:'Hedgehog',c:14,w:1,h:1,g:'obst',f:false,k:'X'},
+  wire:{n:'Barbed wire',c:5,w:2,h:1,g:'obst',f:false,k:'~~'},
+  tower:{n:'Recon tower',c:61,w:3,h:3,g:'point',f:true,k:'TWR'},
+  bunker:{n:'Bunker',c:61,w:3,h:3,g:'point',f:true,k:'BNK'},
+  ifs:{n:'Indirect fire shelter',c:61,w:4,h:3,g:'point',f:true,k:'SHELTER'},
+  speaker:{n:'Loudspeaker',c:61,w:1,h:1,g:'point',f:true,k:'LS'},
+  mortar:{n:'L81 mortar',c:91,w:2,h:2,g:'wpn',f:true,k:'MTR'},
+  sting:{n:'Stingray',c:91,w:2,h:2,g:'wpn',f:true,k:'STG'},
+  sam:{n:'Talon 9K-SAM',c:601,w:3,h:3,g:'wpn',f:true,k:'SAM'},
+  ciws:{n:'Vanguard CIWS',c:901,w:3,h:3,g:'wpn',f:true,k:'CIWS'},
+  repair:{n:'Repair station',c:121,w:3,h:2,g:'log',f:true,k:'REPAIR'},
+  refuel:{n:'Refuel station',c:121,w:3,h:2,g:'log',f:true,k:'FUEL'},
+  rig:{n:'Drill Rig',c:1351,w:4,h:4,g:'rig',f:true,k:'RIG'}
+};
+const GROUPS=[['Core',['fob']],['Walls',['hwall','hlg','hsm']],['Entries',['door','gate','bremer']],['Obstacles',['hog','wire','sand']],['Strong points',['tower','bunker','ifs','speaker']],['Weapons',['mortar','sting','sam','ciws']],['Logistics',['repair','refuel']],['Objective',['rig']]];
+const KEYS=Object.keys(S);
+const GW=40,GH=30,CS=20,URAL=7000,STORE='wardogs-fob-planner.v1';
+let items=[],tool='hwall',rot=0,erasing=false,undo=[],zoneH=26,hover=null,painting=false,changed=false,lastKey=null;
+const $=id=>document.getElementById(id);
+const board=$('board');
+
+function dims(t,r){const s=S[t];return r?[s.h,s.w]:[s.w,s.h]}
+function occ(){const g=new Int16Array(GW*GH).fill(-1);items.forEach((it,i)=>{const[w,h]=dims(it.t,it.r);for(let y=it.y;y<it.y+h;y++)for(let x=it.x;x<it.x+w;x++)if(x>=0&&x<GW&&y>=0&&y<GH)g[y*GW+x]=i});return g}
+function fits(t,x,y,r,g){const[w,h]=dims(t,r);if(x<0||y<0||x+w>GW||y+h>GH)return false;for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)if(g[yy*GW+xx]!==-1)return false;return true}
+function add(t,x,y,r=0){if(fits(t,x,y,r,occ())){items.push({t,x,y,r});return true}return false}
+function inZone(it){const s=S[it.t];if(!s.f)return true;const fobs=items.filter(i=>i.t==='fob');if(!fobs.length)return false;const[w,h]=dims(it.t,it.r);return fobs.some(f=>{const cx=f.x+1,cy=f.y+1;return it.x>=cx-zoneH&&it.y>=cy-zoneH&&it.x+w<=cx+zoneH&&it.y+h<=cy+zoneH})}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function render(){
+  let z='';
+  items.filter(i=>i.t==='fob').forEach(f=>{const cx=f.x+1,cy=f.y+1;z+=`<rect x="${(cx-zoneH)*CS}" y="${(cy-zoneH)*CS}" width="${zoneH*2*CS}" height="${zoneH*2*CS}" fill="var(--accent)" fill-opacity="0.05" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="8 5"/>`});
+  $('zones').innerHTML=z;
+  let out='';
+  items.forEach(it=>{const s=S[it.t];const[w,h]=dims(it.t,it.r);const px=it.x*CS,py=it.y*CS,pw=w*CS,ph=h*CS;const ok=inZone(it);
+    const light=s.g==='obst';
+    out+=`<g><title>${esc(s.n)} (${s.c} supplies)</title><rect x="${px+1}" y="${py+1}" width="${pw-2}" height="${ph-2}" rx="2" fill="var(--g-${s.g})"${ok?'':' stroke="var(--warn)" stroke-width="2" stroke-dasharray="4 3"'}/>`;
+    const lbl=s.k;if(pw>=lbl.length*6.6+4&&ph>=12)out+=`<text x="${px+pw/2}" y="${py+ph/2}" text-anchor="middle" dominant-baseline="central" font-family="JetBrains Mono, monospace" font-size="${ph>=40&&pw>=50?11:9}" font-weight="600" fill="var(${light?'--on-light':'--on'})" pointer-events="none">${lbl}</text>`;
+    out+='</g>'});
+  $('items').innerHTML=out;
+  drawGhost();summary();
+}
+function drawGhost(){
+  const gh=$('ghost');
+  if(!hover){gh.setAttribute('visibility','hidden');return}
+  if(erasing){const g=occ();const i=(hover.x>=0&&hover.x<GW&&hover.y>=0&&hover.y<GH)?g[hover.y*GW+hover.x]:-1;
+    if(i<0){gh.setAttribute('visibility','hidden');return}
+    const it=items[i];const[w,h]=dims(it.t,it.r);setG(it.x,it.y,w,h,'var(--warn)');return}
+  const[w,h]=dims(tool,rot);const ok=fits(tool,hover.x,hover.y,rot,occ());setG(hover.x,hover.y,w,h,ok?'var(--accent)':'var(--warn)');
+}
+function setG(x,y,w,h,col){const gh=$('ghost');gh.setAttribute('x',x*CS);gh.setAttribute('y',y*CS);gh.setAttribute('width',w*CS);gh.setAttribute('height',h*CS);gh.setAttribute('stroke',col);gh.setAttribute('visibility','visible')}
+
+function summary(){
+  const counts={};let total=0;items.forEach(it=>{counts[it.t]=(counts[it.t]||0)+1;total+=S[it.t].c});
+  $('total').innerHTML=total.toLocaleString()+'<small>supplies</small>';
+  const rigs=counts.rig||0,fobs=counts.fob||0,out=items.filter(i=>!inZone(i)).length;
+  const runs=total?Math.ceil(total/URAL):0;
+  $('facts').innerHTML=`<dt>Ural runs at 7,000 each</dt><dd>${runs}</dd><dt>Structures placed</dt><dd>${items.length}</dd><dt>Min. fuel per rig run</dt><dd>${rigs?'1,200 × '+rigs:'n/a'}</dd>`;
+  let w='';
+  if(!fobs&&items.some(i=>S[i.t].f))w+='<div class="warnbox">No FOB crate placed. Walls, gates, towers and emplacements all need one.</div>';
+  else if(out)w+=`<div class="warnbox">${out} structure${out>1?'s are':' is'} outside the build zone. Move ${out>1?'them':'it'} in or widen the zone if your in-game square is bigger.</div>`;
+  $('warns').innerHTML=w;
+  const rows=Object.keys(counts).map(k=>[k,counts[k],counts[k]*S[k].c]).sort((a,b)=>b[2]-a[2]||b[1]-a[1]);
+  $('rows').innerHTML=rows.length?rows.map(([k,q,sub])=>`<tr><td><span class="sw" style="background:var(--g-${S[k].g})"></span>${esc(S[k].n)}</td><td class="n">${q}</td><td class="n">${sub.toLocaleString()}</td></tr>`).join(''):'<tr><td colspan="3" style="color:var(--muted);padding:10px 0">Nothing placed yet. Pick a structure on the left and click the grid, or load the example base.</td></tr>';
+  status();
+}
+function status(){
+  const s=S[tool];const[w,h]=dims(tool,rot);
+  $('status').textContent=erasing?'Erasing: click or drag over a structure to remove it.':`Placing ${s.n} · ${w}×${h} cells · ${s.c} supplies${s.f?'':' · no FOB needed'}`;
+}
+
+function buildPalette(){
+  const p=$('palette');let h='';
+  GROUPS.forEach(([g,ks])=>{h+=`<div class="grp"><p class="eyebrow">${g}</p>`;ks.forEach(k=>{const s=S[k];h+=`<button type="button" class="sbtn" id="pal-${k}" data-k="${k}" aria-pressed="${k===tool}"><span class="sw" style="background:var(--g-${s.g})"></span><span>${esc(s.n)}</span><span class="c">${s.c}</span></button>`});h+='</div>'});
+  p.innerHTML=h;
+  p.querySelectorAll('.sbtn').forEach(b=>b.addEventListener('click',()=>selectTool(b.dataset.k)));
+}
+function selectTool(k){tool=k;setErase(false);document.querySelectorAll('.sbtn').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===k));status();drawGhost()}
+function setErase(v){erasing=v;$('eraseBtn').setAttribute('aria-pressed',v);board.style.cursor=v?'not-allowed':'crosshair';status();drawGhost()}
+
+function cellOf(e){const pt=board.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const m=board.getScreenCTM();if(!m)return null;const p=pt.matrixTransform(m.inverse());return{x:Math.floor(p.x/CS),y:Math.floor(p.y/CS)}}
+function act(c){if(!c)return;const key=c.x+','+c.y;if(key===lastKey)return;lastKey=key;
+  if(erasing){if(c.x<0||c.x>=GW||c.y<0||c.y>=GH)return;const i=occ()[c.y*GW+c.x];if(i>=0){items.splice(i,1);changed=true;render()}}
+  else if(add(tool,c.x,c.y,rot)){changed=true;render()}}
+function snap(){return JSON.stringify(items)}
+board.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;e.preventDefault();painting=true;changed=false;lastKey=null;undo.push(snap());if(undo.length>100)undo.shift();try{board.setPointerCapture(e.pointerId)}catch(_){}hover=cellOf(e);act(hover)});
+board.addEventListener('pointermove',e=>{hover=cellOf(e);if(painting)act(hover);drawGhost()});
+function endStroke(){if(!painting)return;painting=false;if(!changed)undo.pop();else save()}
+board.addEventListener('pointerup',endStroke);board.addEventListener('pointercancel',endStroke);
+board.addEventListener('pointerleave',()=>{if(!painting){hover=null;drawGhost()}});
+board.addEventListener('contextmenu',e=>{e.preventDefault();rotate()});
+
+function rotate(){rot=rot?0:1;status();drawGhost()}
+function doUndo(){if(!undo.length)return;items=JSON.parse(undo.pop());render();save()}
+function save(){if(viewingShared){showShared(false);clearHash()}try{localStorage.setItem(STORE,encode())}catch(_){}}
+/* Compact code: "f1." + base64url of 3 bytes per structure (5-bit type, 6-bit x, 5-bit y, 1-bit rotation). */
+function encode(){
+  const b=new Uint8Array(items.length*3);
+  items.forEach((it,i)=>{const v=(KEYS.indexOf(it.t)<<12)|(it.x<<6)|(it.y<<1)|(it.r?1:0);b[i*3]=v>>16;b[i*3+1]=(v>>8)&255;b[i*3+2]=v&255});
+  let s='';b.forEach(c=>s+=String.fromCharCode(c));
+  return 'f1.'+btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decode(str){
+  str=str.trim();const h=str.indexOf('#');if(h>=0)str=str.slice(h+1);
+  let rows;
+  if(str.startsWith('f1.')){
+    const bin=atob(str.slice(3).replace(/-/g,'+').replace(/_/g,'/'));if(bin.length%3)throw 0;rows=[];
+    for(let i=0;i<bin.length;i+=3){const v=(bin.charCodeAt(i)<<16)|(bin.charCodeAt(i+1)<<8)|bin.charCodeAt(i+2);rows.push([v>>12,(v>>6)&63,(v>>1)&31,v&1])}
+  }else{rows=JSON.parse(atob(str));if(!Array.isArray(rows))throw 0}
+  const out=[];const g=new Int16Array(GW*GH).fill(-1);
+  for(const v of rows){if(!Array.isArray(v)||v.length!==4)throw 0;const t=KEYS[v[0]];if(!t)throw 0;const[x,y,r]=[v[1]|0,v[2]|0,v[3]?1:0];if(!fits(t,x,y,r,g))continue;out.push({t,x,y,r});const[w,h]=dims(t,r);for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)g[yy*GW+xx]=1}
+  return out}
+function shareLink(){return location.origin+location.pathname+'#'+encode()}
+function copyText(text,okMsg){const ta=$('codeIn'),m=$('shareMsg');
+  const fallback=()=>{ta.value=text;ta.focus();ta.select();m.className='msg';m.textContent='Copying was blocked, so it is in the box above, selected. Copy it from there.'};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(()=>{m.className='msg';m.textContent=okMsg},fallback)}else fallback()}
+let viewingShared=false;
+function showShared(on,count){viewingShared=on;$('sharedNotice').hidden=!on;if(on)$('sharedText').textContent=`You're looking at a shared layout (${count} structures). Editing it replaces the layout saved in this browser.`}
+function clearHash(){try{history.replaceState(null,'',location.pathname+location.search)}catch(_){}}
+function loadFromHash(){const h=location.hash.slice(1);if(!h.startsWith('f1.'))return false;
+  try{const it=decode(h);undo.push(snap());items=it;showShared(true,it.length);render();return true}
+  catch(_){const m=$('shareMsg');m.className='msg err';m.textContent='The shared link could not be read. Ask for it to be sent again.';return false}}
+
+$('rotBtn').addEventListener('click',rotate);
+$('eraseBtn').addEventListener('click',()=>setErase(!erasing));
+$('undoBtn').addEventListener('click',doUndo);
+$('exampleBtn').addEventListener('click',()=>{undo.push(snap());loadExample();render();save()});
+let clearArmed=null;
+$('clearBtn').addEventListener('click',()=>{const b=$('clearBtn');
+  if(!clearArmed){b.textContent='Tap again to clear';clearArmed=setTimeout(()=>{b.textContent='Clear';clearArmed=null},3000);return}
+  clearTimeout(clearArmed);clearArmed=null;b.textContent='Clear';undo.push(snap());items=[];render();save()});
+$('zoneIn').addEventListener('input',e=>{zoneH=+e.target.value;$('zoneLbl').textContent=zoneH*2;render()});
+$('linkBtn').addEventListener('click',()=>{if(!items.length){const m=$('shareMsg');m.className='msg err';m.textContent='Place something first. An empty layout has nothing to share.';return}copyText(shareLink(),'Link copied. Anyone who opens it sees this layout.')});
+$('copyBtn').addEventListener('click',()=>copyText(encode(),'Code copied. Paste it to your squad.'));
+$('keepBtn').addEventListener('click',()=>save());
+$('mineBtn').addEventListener('click',()=>{let mine=[];try{const s=localStorage.getItem(STORE);if(s)mine=decode(s)}catch(_){}
+  showShared(false);clearHash();undo=[];if(mine.length)items=mine;else loadExample();render()});
+window.addEventListener('hashchange',loadFromHash);
+$('importBtn').addEventListener('click',()=>{const m=$('shareMsg');const v=$('codeIn').value;
+  if(!v.trim()){m.className='msg err';m.textContent='Paste a layout code into the box first.';return}
+  try{const it=decode(v);undo.push(snap());items=it;render();save();m.className='msg';m.textContent=`Loaded ${it.length} structures.`}
+  catch(_){m.className='msg err';m.textContent='That code could not be read. Check you copied all of it.'}});
+$('codeIn').addEventListener('input',()=>{$('shareMsg').textContent='';$('shareMsg').className='msg'});
+document.addEventListener('keydown',e=>{const tg=e.target.tagName;if(tg==='TEXTAREA'||tg==='INPUT')return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();doUndo();return}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const k=e.key.toLowerCase();if(k==='r')rotate();else if(k==='e')setErase(!erasing);else if(k==='escape')setErase(false)});
+
+function loadExample(){
+  items=[];
+  const runH=(x1,x2,y)=>{let x=x1;while(x<=x2){if(x+3<=x2&&add('hwall',x,y,0)){x+=4}else{add('hsm',x,y,0);x++}}};
+  const runV=(x,y1,y2)=>{let y=y1;while(y<=y2){if(y+3<=y2&&add('hwall',x,y,1)){y+=4}else{add('hsm',x,y,0);y++}}};
+  add('fob',10,16);
+  [[5,3],[32,3],[5,23],[32,23]].forEach(([x,y])=>add('tower',x,y));
+  runH(8,31,4);runH(8,20,24);add('gate',21,24);runH(24,31,24);
+  runV(6,6,22);runV(33,6,22);
+  add('gate',21,20);[21,22,23].forEach(y=>{add('hsm',20,y);add('hsm',24,y)});add('bunker',25,20);
+  add('door',19,9);add('door',19,18);add('door',13,14);add('door',27,14);
+  runV(19,5,23);runH(7,18,14);runH(20,32,14);
+  add('mortar',8,6);add('mortar',12,6);add('sting',8,10);add('sam',12,10);
+  add('rig',21,5);add('rig',26,5);add('rig',21,9);add('rig',26,9);
+  add('repair',8,20);add('refuel',12,20);
+  add('ifs',20,15);add('ifs',24,15);
+  [[6,4,8],[33,31,35]].forEach(([cx,l,r])=>{add('hlg',l,26);add('hlg',l,27);add('hlg',r,26);add('hlg',r,27);add('hsm',cx-1,27);add('hsm',cx+1,27);add('door',cx,27);[28,29].forEach(y=>{add('bremer',cx-1,y);add('bremer',cx+1,y)})});
+  for(let x=9;x<=30;x+=3)add('hog',x,1);
+  for(let y=7;y<=22;y+=3){add('hog',2,y);add('hog',37,y)}
+  [11,14,17,27,29].forEach(x=>add('hog',x,27));
+  for(let x=8;x<=30;x+=2)add('wire',x,0,0);
+  for(let y=4;y<=24;y+=2){add('wire',0,y,1);add('wire',39,y,1)}
+}
+
+buildPalette();
+(function boot(){if(loadFromHash()){undo=[];return}let ok=false;try{const s=localStorage.getItem(STORE);if(s){items=decode(s);ok=true}}catch(_){}if(!ok)loadExample();render()})();
+</script>
+</body>
+</html>
